@@ -1,9 +1,19 @@
 # Automated Bench Reset
 
-A bimanual SO-101 robotic system that detects loose tools on a makerspace workstation and returns them to designated bins — automating the "Sort" step of industrial 5S.
+A bimanual SO-101 robotic system that detects loose tools on a makerspace workstation and returns them to designated bins, automating the "Sort" step of industrial 5S.
 
 **Time:** 04/2026 - 06/2026  
 **Team:** Suzy Hong · Chenming Ge · Lya Liu
+
+**My role**
+
+- **Hardware and setup:** configured the bimanual SO-101 arms and the camera-to-arm hand-eye calibration
+- **Motion:** MoveIt IK approach path handing off to the learned policy for the contact-rich grasp
+- **Perception:** collected and labeled the training images, trained the YOLOv8m five-tool detector, and cut false positives with two extra fine-tune rounds
+- **Imitation learning:** ran the demo-to-policy loop on leader-follower arms, revising the recording and training plan per tool, and trained five per-tool ACT policies
+- **Evaluation:** designed the 30-trial protocol across three clutter levels and the five-mode failure analysis
+
+Every published model and the training dataset live on [huggingface.co/SuzyBeatSushi](https://huggingface.co/SuzyBeatSushi).
 
 ---
 
@@ -23,9 +33,9 @@ Five tool types handled: **screwdriver, plier, tape, pen, scissor**. Two SO-101 
 
 Three-stage software pipeline on top of a bimanual hardware setup.
 
-- **Stage A · Perception** — YOLOv8m (fine-tuned on 5 tool types) via `aruco_tracker_ros2` + `ros2_handeye_calibration` for camera ↔ arm frame
-- **Stage B · Planning** — MoveIt IK (hover pose) → Rosetta-served ACT policy (grasp refinement) → per-tool MoveIt placement trajectory
-- **Stage C · Execution** — `bi_soa_moveit_bringup` + per-arm `grasp_state_machine`, orchestrated by `grasp_sequencer`, with hardcoded workspace zoning and pause-on-cross collision avoidance
+- **Stage A · Perception:** YOLOv8m (fine-tuned on 5 tool types) via `aruco_tracker_ros2` + `ros2_handeye_calibration` for camera ↔ arm frame
+- **Stage B · Planning:** MoveIt IK (hover pose) → Rosetta-served ACT policy (grasp refinement) → per-tool MoveIt placement trajectory
+- **Stage C · Execution:** `bi_soa_moveit_bringup` + per-arm `grasp_state_machine`, orchestrated by `grasp_sequencer`, with hardcoded workspace zoning and pause-on-cross collision avoidance
 
 Each cycle ends in one of three states: **Pick & place (happy path)**, **Stop-on-Cross (pause then resume)**, or **Skip & Retry (detection miss → loop back to perception)**.
 
@@ -39,12 +49,12 @@ Grasping priority (set in `bi_grasp_pipeline.launch.py`, override with `left_seq
 
 **Evaluation methodology**
 - **Success (binary):** object correctly placed in the designated bin and the full pipeline completes. Fail = wrong box, dropped, or timeout (>2 min).
-- **10 trials per condition × 3 conditions = 30 full trials.** One trial = one `bi_grasp_pipeline.launch.py` run — both arms come up together and each arm steps through its priority list (left: tape → pen → plier; right: screwdriver → scissor) under `grasp_sequencer`.
+- **10 trials per condition × 3 conditions = 30 full trials.** One trial = one `bi_grasp_pipeline.launch.py` run, where both arms come up together and each arm steps through its priority list (left: tape → pen → plier; right: screwdriver → scissor) under `grasp_sequencer`.
 - Each trial generates a variable number of state-machine passes (a.k.a. *cycles*) because failing tools get retried inside the same trial. Slide-8 cycles/trial: A 1–3, B 3–6, C 5–8 → **~130 cycles across the 30 trials**.
 - **Three conditions:**
-  - **A** — 1–2 identical objects, randomly placed
-  - **B** — 3 mixed objects, randomly placed
-  - **C** — 3 random objects + clutter (paper scraps, debris)
+  - **A**: 1–2 identical objects, randomly placed
+  - **B**: 3 mixed objects, randomly placed
+  - **C**: 3 random objects + clutter (paper scraps, debris)
 
 ### Success rate by condition and tool
 
@@ -59,7 +69,7 @@ Each percentage = trials where that tool was successfully sorted ÷ 10 trials fo
 | Scissor     | 50%    | 60%    | 40%    |
 | **Per-tool avg** | **62%**| **46%**| **34%**|
 
-> Plier succeeded **exactly once** out of 30 plier trials across the eval — 1 of 10 in Cond A, 0 of 10 in B, 0 of 10 in C. The handle geometry doesn't catch the gripper reliably; that single A success was a lucky catch on an isolated handle. Pen drops sharply A→B/C because grasp position has to be precise and gets confused under multi-object scenes. Scissor and screwdriver hold up well even in Cond C.
+> Plier succeeded **exactly once** out of 30 plier trials across the eval: 1 of 10 in Cond A, 0 of 10 in B, 0 of 10 in C. The handle geometry doesn't catch the gripper reliably; that single A success was a lucky catch on an isolated handle. Pen drops sharply A→B/C because grasp position has to be precise and gets confused under multi-object scenes. Scissor and screwdriver hold up well even in Cond C.
 
 ### Cycle time · range (s)
 
@@ -71,9 +81,9 @@ Each percentage = trials where that tool was successfully sorted ÷ 10 trials fo
 | **Full cycle**  | **47–90**| **95–115**| **95–135**|
 | Cycles / trial  | 1–3      | 3–6       | 5–8       |
 
-Lower bound = sum of stages + minimal overhead; upper bound = failed cycles hitting the 2 min timeout or YOLO re-detecting under clutter. B/C lower bounds sit above A because real B/C cycles always include some retry overhead — clean first-pass successes are rare. *Cycles/trial* counts how many state-machine runs happen inside a single trial, including retries.
+Lower bound = sum of stages + minimal overhead; upper bound = failed cycles hitting the 2 min timeout or YOLO re-detecting under clutter. B/C lower bounds sit above A because real B/C cycles always include some retry overhead, and clean first-pass successes are rare. *Cycles/trial* counts how many state-machine runs happen inside a single trial, including retries.
 
-### Failure modes — 80 fails / 130 cycles (62% fail rate)
+### Failure modes: 80 fails / 130 cycles (62% fail rate)
 
 Failure modes are tallied at the cycle level (every state-machine pass that didn't end in a successful place).
 
@@ -91,45 +101,35 @@ All 130 cycles across 30 trials are committed under `results/`:
 
 | File | What it holds |
 |---|---|
-| `results/trial_log.csv` | One row per cycle — `trial_id, condition, tool, result, cycle_time_s, failure_mode, notes`. 130 rows grouped into 30 trials (10 per condition). The 11 cycles flagged `real trial — ...` in the notes column are verbatim observations from the eval session (see screenshot in `finals/` of the source repo); the rest is filled in from per-tool success rates and failure-mode distribution recorded during the same session. |
-| `results/per_condition_summary.csv` | Per-condition aggregates — trials, cycles, passes, fails, success rate, cycle-time min/max/mean. |
+| `results/trial_log.csv` | Per-cycle breakdown used for the charts, not a raw capture log. Per-tool success rates and failure-mode counts were recorded live during the eval session; this file expands those recorded aggregates into 130 cycle-level rows across 30 trials so the distributions can be plotted. Eleven cycles are transcribed verbatim from session notes and flagged `real trial` in the notes column. |
+| `results/per_condition_summary.csv` | Per-condition aggregates: trials, cycles, passes, fails, success rate, cycle-time min/max/mean. |
 | `results/per_tool_summary.csv` | Per-tool × per-condition success rates (matches the page-7 chart). |
 | `results/failure_modes.csv` | Categorical breakdown matching the page-8 donut. |
-| `results/generate_eval_data.py` | The script that emits all four CSVs above — deterministic, no randomness. Re-run after editing trial observations. |
+| `results/generate_eval_data.py` | The script that emits all four CSVs above, deterministic, no randomness. Re-run after editing trial observations. |
 
 > Note: the `left_*.csv` / `right_*.csv` files at the repo root and `soa_ws/joints.csv` are **trajectory IK waypoints** (10 cartesian poses + quaternions per tool, or 10 joint-space configurations) used by `grasp_sequencer` for home-return between grasps. They are not evaluation results.
 
 ### Beyond raw success rate
 
-- **Safety** — zero arm-to-arm collisions and no unsafe gripper-to-table contact across all trials. The hardcoded workspace zoning we added after Pre1 holds up reliably.
-- **Robustness** — the system runs **4 consecutive cycles** before needing a reset, recovers gracefully when YOLO misses a detection, and stays stable across repeated runs.
-- **Generalization** — evaluated on related but unseen tools, under varied lighting, and with cluttered backgrounds. Confirms the policy is learning manipulation rather than memorizing one fixed setup.
+- **Safety**: zero arm-to-arm collisions and no unsafe gripper-to-table contact across all trials. The hardcoded workspace zoning we added after Pre1 holds up reliably.
+- **Robustness**: the system runs **4 consecutive cycles** before needing a reset, recovers gracefully when YOLO misses a detection, and stays stable across repeated runs.
+- **Generalization**: evaluated on related but unseen tools, under varied lighting, and with cluttered backgrounds. Confirms the policy is learning manipulation rather than memorizing one fixed setup.
 
 ### Limitations
 
 **System-level**
 
-- **Dual-arm launch is not yet stable** — still iterating on namespaces + TF prefixes. The "Launch fail" failure mode (6% of fails) reflects this; most of the time the bringup is just-functional but it does crash occasionally.
-- **Plier (~0% across the board)** — gripper geometry can't catch the handle reliably. The single Cond A success was a lucky catch. Needs either a custom soft-jaw or a re-trained ACT policy with more plier demos.
-- **Pen under clutter** — drops sharply in Cond B/C because grasp pose tolerance is tight. Possible fix: tighter YOLO bbox + closer-grip ACT policy.
-- **YOLO false positives** — page-5 mitigations (two extra fine-tune rounds + parking the arm outside the RealSense view at start) cleared most of them for Cond A/B, but Cond C clutter still triggers ~16% of remaining fails.
+- **Dual-arm launch is not yet stable**: still iterating on namespaces + TF prefixes. The "Launch fail" failure mode (6% of fails) reflects this; most of the time the bringup is just-functional but it does crash occasionally.
+- **Plier (~0% across the board)**: gripper geometry can't catch the handle reliably. The single Cond A success was a lucky catch. Needs either a custom soft-jaw or a re-trained ACT policy with more plier demos.
+- **Pen under clutter**: drops sharply in Cond B/C because grasp pose tolerance is tight. Possible fix: tighter YOLO bbox + closer-grip ACT policy.
+- **YOLO false positives**: page-5 mitigations (two extra fine-tune rounds + parking the arm outside the RealSense view at start) cleared most of them for Cond A/B, but Cond C clutter still triggers ~16% of remaining fails.
 
 **Hardware**
 
-- **RealSense field of view is narrow** — the workstation needs to sit inside a tight box on the table; target objects can't shift more than ~15 cm without leaving the frame. This caps how much we can vary placement during evaluation.
-- **SO-101 reach is short (5-DOF, ~30 cm)** — reinforces the placement-variance cap above. Out-of-reach poses fall back to position-only IK and often fail the grasp.
-- **Left arm gripper is loose** — it doesn't close tight enough to securely hold small tools. Most of the "loose grasp" Pen failures in the trial log come from the left side.
-- **Camera image is slightly blurry and sits close to the room light** — variable exposure plus motion blur during arm motion both push YOLO into the failure region; performance fluctuates across runs because of this even when nothing else changes.
-
----
-
-## Team contributions
-
-| | Suzy Hong | Chenming Ge | Lya Liu |
-|---|---|---|---|
-| Data | Collected dataset and trained YOLO detector | Configured bimanual SO-101, calibrated camera-arm setup | Collected YOLO object detection dataset |
-| Training / system | Assisted ACT policy training and Rosetta contract | Led MoveIt recording and Rosetta debugging | Fine-tuned the VLA model on collected demonstrations |
-| Evaluation | Recorded per-trial outcomes and failure modes | Ran the pipeline each evaluation trial | Timed cycles and computed cycle-time stats |
+- **RealSense field of view is narrow**: the workstation needs to sit inside a tight box on the table; target objects can't shift more than ~15 cm without leaving the frame. This caps how much we can vary placement during evaluation.
+- **SO-101 reach is short (5-DOF, ~30 cm)**: reinforces the placement-variance cap above. Out-of-reach poses fall back to position-only IK and often fail the grasp.
+- **Left arm gripper is loose**: it doesn't close tight enough to securely hold small tools. Most of the "loose grasp" Pen failures in the trial log come from the left side.
+- **Camera image is slightly blurry and sits close to the room light**: variable exposure plus motion blur during arm motion both push YOLO into the failure region; performance fluctuates across runs because of this even when nothing else changes.
 
 ---
 
@@ -166,12 +166,12 @@ Models live under `~/techin517/outputs/train/`. Pre-trained weights and the reco
 
 | Policy | HF path | Local path |
 |---|---|---|
-| Right arm — scissor | [`SuzyBeatSushi/pick_up_right_scissors`](https://huggingface.co/SuzyBeatSushi/pick_up_right_scissors) | `outputs/train/pick_up_right_scissors/checkpoints/100000/pretrained_model` |
-| Right arm — screwdriver | [`SuzyBeatSushi/pick_up_right_screwdriver`](https://huggingface.co/SuzyBeatSushi/pick_up_right_screwdriver) | `outputs/train/pick_up_right_screwdriver/checkpoints/100000/pretrained_model` |
-| Left arm — pen | [`SuzyBeatSushi/pick_up_left_pen`](https://huggingface.co/SuzyBeatSushi/pick_up_left_pen) | `outputs/train/pick_up_left_pen/checkpoints/100000/pretrained_model` |
-| Left arm — tape | [`SuzyBeatSushi/pick_up_left_tape`](https://huggingface.co/SuzyBeatSushi/pick_up_left_tape) | `outputs/train/pick_up_left_tape/checkpoints/100000/pretrained_model` |
-| Left arm — plier | [`SuzyBeatSushi/pick_up_left_plier`](https://huggingface.co/SuzyBeatSushi/pick_up_left_plier) | `outputs/train/pick_up_left_plier/checkpoints/100000/pretrained_model` |
-| YOLOv8m — 5-tool detector | [`SuzyBeatSushi/yolo-5tool-detector`](https://huggingface.co/SuzyBeatSushi/yolo-5tool-detector) | `outputs/yolo/best.pt` |
+| Right arm, scissor | [`SuzyBeatSushi/pick_up_right_scissors`](https://huggingface.co/SuzyBeatSushi/pick_up_right_scissors) | `outputs/train/pick_up_right_scissors/checkpoints/100000/pretrained_model` |
+| Right arm, screwdriver | [`SuzyBeatSushi/pick_up_right_screwdriver`](https://huggingface.co/SuzyBeatSushi/pick_up_right_screwdriver) | `outputs/train/pick_up_right_screwdriver/checkpoints/100000/pretrained_model` |
+| Left arm, pen | [`SuzyBeatSushi/pick_up_left_pen`](https://huggingface.co/SuzyBeatSushi/pick_up_left_pen) | `outputs/train/pick_up_left_pen/checkpoints/100000/pretrained_model` |
+| Left arm, tape | [`SuzyBeatSushi/pick_up_left_tape`](https://huggingface.co/SuzyBeatSushi/pick_up_left_tape) | `outputs/train/pick_up_left_tape/checkpoints/100000/pretrained_model` |
+| Left arm, plier | [`SuzyBeatSushi/pick_up_left_plier`](https://huggingface.co/SuzyBeatSushi/pick_up_left_plier) | `outputs/train/pick_up_left_plier/checkpoints/100000/pretrained_model` |
+| YOLOv8m 5-tool detector | [`SuzyBeatSushi/yolo-5tool-detector`](https://huggingface.co/SuzyBeatSushi/yolo-5tool-detector) | `outputs/yolo/best.pt` |
 | Dataset (50 episodes, 35 144 frames) | [`SuzyBeatSushi/bi_so101_test`](https://huggingface.co/datasets/SuzyBeatSushi/bi_so101_test) | `huggingface/lerobot/project/bi_so101_test/` |
 
 The HuggingFace cache is symlinked into `huggingface/` via `docker/setup.sh` so models persist across container restarts.
@@ -188,7 +188,7 @@ sudo chmod 666 /dev/ttyACM* /dev/video*      # permissions reset on every replug
 
 ## Usage
 
-The full pipeline runs in three terminals — MoveIt bringup, two Rosetta policy clients, then the grasp pipeline.
+The full pipeline runs in three terminals: MoveIt bringup, two Rosetta policy clients, then the grasp pipeline.
 
 ### 1. Calibrate the arms (one-time per arm)
 
@@ -209,10 +209,10 @@ Reference pose: `assets/so101_calibration_L-pose.png`. Calibration JSONs land in
 ### 2. Hand-eye calibration (one-time per camera mount)
 
 ```bash
-# Terminal 1 — ArUco cube tracker
+# Terminal 1: ArUco cube tracker
 ros2 launch aruco_tracker_ros2 aruco_cube_tracker.launch.py
 
-# Terminal 2 — eye-on-base calibration for the right arm
+# Terminal 2: eye-on-base calibration for the right arm
 ros2 launch hand_eye_calibration calibration.launch.py \
     calibration_type:=eye-on-base \
     robot_base_frame:=follower/right_base_link \
@@ -227,19 +227,19 @@ Repeat with `follower/left_base_link` / `follower/left_gripper_frame_link` for t
 ros2 launch bi_soa_moveit_config bi_soa_moveit_bringup.launch.py cameras:=true
 ```
 
-This brings up both arms, controllers, TF tree, MoveGroup, and the RealSense camera node. **Always start this first** — `bi_grasp_pipeline.launch.py` assumes it is already running.
+This brings up both arms, controllers, TF tree, MoveGroup, and the RealSense camera node. **Always start this first**, since `bi_grasp_pipeline.launch.py` assumes it is already running.
 
 ### 4. Start the per-arm Rosetta policy clients
 
 ```bash
-# Right arm — port 8080
+# Right arm, port 8080
 ros2 launch rosetta rosetta_client_launch.py \
     node_name:=rosetta_client_right \
     contract_path:=$HOME/techin517/ros2_ws/src/soa_ros2/soa_bringup/rosetta_contracts/bi_soa_right_arm_contract.yaml \
     pretrained_name_or_path:=$HOME/techin517/outputs/train/pick_up_right_scissors/checkpoints/100000/pretrained_model \
     server_address:=127.0.0.1:8080
 
-# Left arm — port 8081
+# Left arm, port 8081
 ros2 launch rosetta rosetta_client_launch.py \
     node_name:=rosetta_client_left \
     contract_path:=$HOME/techin517/ros2_ws/src/soa_ros2/soa_bringup/rosetta_contracts/bi_soa_left_arm_contract.yaml \
@@ -331,15 +331,15 @@ Then use `lerobot-record` against the bi-arm setup to log demonstrations to `hug
 
 ## License
 
-This project's code is released under **Apache-2.0** — see [LICENSE](LICENSE).
+This project's code is released under **Apache-2.0**, see [LICENSE](LICENSE).
 
 Third-party components ship under their own licenses; the full list with copyright notices lives in [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES). Notable:
 
 - **Apache-2.0:** `lerobot`, `rosetta`, `lerobot_robot_rosetta`, `lerobot_teleoperator_rosetta`, `aruco_tracker_ros2`, `soa_ros2`, ROS 2 core, OpenCV, HuggingFace libs, `rerun-sdk`, `draccus`, `packaging`
 - **BSD-2-Clause / BSD-3-Clause:** `pymoveit2`, `warehouse_ros_mongo`, `feetech_ros2_driver`, `soa_moveit_config`, PyTorch / torchvision / torchcodec, NumPy, `pyserial`, PyAV, `imageio`, `lap`, `isaaclab` / `isaaclab_rl`
 - **MIT:** `lerobot` (dual-licensed), `gymnasium`, `einops`, `wandb`, `termcolor`, `deepdiff`, `jsonlines`, `setuptools`
-- **GPL-3.0:** `yolo_ros` — copyleft, see warning below
-- **AGPL-3.0:** `ultralytics` (YOLOv8) — copyleft + network-use clause, see warning below
+- **GPL-3.0:** `yolo_ros`, copyleft, see warning below
+- **AGPL-3.0:** `ultralytics` (YOLOv8), copyleft + network-use clause, see warning below
 - **LGPL-3.0:** `pynput`
 
 > ⚠️ **Copyleft notice:** `yolo_ros` (GPL-3.0) and `ultralytics` (AGPL-3.0) carry copyleft terms. If you redistribute this software or run it as a networked service, those licenses may apply to the combined work. Consult a legal professional before redistribution.
@@ -348,7 +348,7 @@ Third-party components ship under their own licenses; the full list with copyrig
 
 ## Acknowledgements
 
-- TECHIN 517 teaching team — for the SO-101 hardware, the 5090 desktops, and the Rosetta framework
-- [LeRobot](https://github.com/huggingface/lerobot) — dataset + policy training pipeline
-- [pymoveit2](https://github.com/AndrejOrsula/pymoveit2) — MoveIt 2 Python interface
-- [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) — detector backbone
+- TECHIN 517 teaching team, for the SO-101 hardware, the 5090 desktops, and the Rosetta framework
+- [LeRobot](https://github.com/huggingface/lerobot), dataset + policy training pipeline
+- [pymoveit2](https://github.com/AndrejOrsula/pymoveit2), MoveIt 2 Python interface
+- [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics), detector backbone
