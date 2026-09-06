@@ -1,8 +1,8 @@
-# Automated Workstation Reset
+# Automated Bench Reset
 
 A bimanual SO-101 robotic system that detects loose tools on a makerspace workstation and returns them to designated bins — automating the "Sort" step of industrial 5S.
 
-**Course:** TECHIN 517 · Spring 2026
+**Time:** 04/2026 - 06/2026  
 **Team:** Suzy Hong · Chenming Ge · Lya Liu
 
 ---
