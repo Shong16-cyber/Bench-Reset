@@ -15,6 +15,12 @@ A bimanual SO-101 robotic system that detects loose tools on a makerspace workst
 
 Every published model and the training dataset live on [huggingface.co/SuzyBeatSushi](https://huggingface.co/SuzyBeatSushi).
 
+<div align="center">
+  <img src="docs/fig-problem.png" width="88%" />
+</div>
+
+[Full slide deck (PDF)](docs/presentation.pdf)
+
 ---
 
 ## Demo
@@ -31,6 +37,10 @@ Five tool types handled: **screwdriver, plier, tape, pen, scissor**. Two SO-101 
 
 ## System architecture
 
+<div align="center">
+  <img src="docs/fig-architecture.png" width="100%" />
+</div>
+
 Three-stage software pipeline on top of a bimanual hardware setup.
 
 - **Stage A · Perception:** YOLOv8m (fine-tuned on 5 tool types) via `aruco_tracker_ros2` + `ros2_handeye_calibration` for camera ↔ arm frame
@@ -46,6 +56,10 @@ Grasping priority (set in `bi_grasp_pipeline.launch.py`, override with `left_seq
 ---
 
 ## Quantitative results
+
+<div align="center">
+  <img src="docs/fig-evaluation.jpg" width="100%" />
+</div>
 
 **Evaluation methodology**
 - **Success (binary):** object correctly placed in the designated bin and the full pipeline completes. Fail = wrong box, dropped, or timeout (>2 min).
