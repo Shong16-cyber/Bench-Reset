@@ -3,9 +3,8 @@
 A bimanual SO-101 robotic system that detects loose tools on a makerspace workstation and returns them to designated bins, automating the "Sort" step of industrial 5S.
 
 **Time:** 04/2026 - 06/2026  
-**Team:** Suzy Hong · Chenming Ge · Lya Liu
-
-### My role
+**Team:** Suzy Hong · Chenming Ge · Lya Liu  
+**My role:**
 
 - **Hardware and setup:** configured the bimanual SO-101 arms and the camera-to-arm hand-eye calibration
 - **Motion:** MoveIt IK approach path handing off to the learned policy for the contact-rich grasp
