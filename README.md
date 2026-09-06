@@ -5,7 +5,7 @@ A bimanual SO-101 robotic system that detects loose tools on a makerspace workst
 **Time:** 04/2026 - 06/2026  
 **Team:** Suzy Hong · Chenming Ge · Lya Liu
 
-**My role**
+### My role
 
 - **Hardware and setup:** configured the bimanual SO-101 arms and the camera-to-arm hand-eye calibration
 - **Motion:** MoveIt IK approach path handing off to the learned policy for the contact-rich grasp
